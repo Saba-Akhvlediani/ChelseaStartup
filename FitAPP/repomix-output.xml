@@ -1,0 +1,215 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+4. Repository files, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+<additional_info>
+
+</additional_info>
+
+</file_summary>
+
+<directory_structure>
+__init__.py
+crud.py
+database.py
+main.py
+models.py
+schemas.py
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="__init__.py">
+import crud,main,database,models,schemas
+</file>
+
+<file path="crud.py">
+# WRITE ALL DATABASE LOGIC SEPERATED FROM API ENDPOINTS
+
+from . import models,schemas
+from database import get_db
+from sqlalchemy.orm import Session
+from fastapi import Depends,status,HTTPException
+
+
+
+def cet_fit_instructor_by_name(instructor_username: str, db: Session=Depends(get_db)):
+    return db.query(models.FitInstructorsTable).filter(models.FitInstructorsTable.username==instructor_username).first()
+
+def cet_fit_instructor_by_gmail(instructor_gmail: str, db: Session=Depends(get_db)):
+    return db.query(models.FitInstructorsTable).filter(models.FitInstructorsTable.gmail==instructor_gmail).first()
+
+
+def create_instructor(instructor: schemas.InstructorCreate, db: Session=Depends(get_db)):
+    db_instructor = models.FitInstructorsTable(username=instructor.username,
+                                               fullname=instructor.fullname,
+                                               gmail=instructor.gmail,
+                                               mobile_phone=instructor.mobile_phone,
+                                               city=instructor.city,
+                                               category=instructor.category,
+                                               experience=instructor.experience,
+                                               service_type=instructor.service_type,
+                                               bio=instructor.bio,
+                                               photo_path=instructor.photo_path,
+                                               min_salary=instructor.min_salary,
+                                               max_salary=instructor.max_salary)
+    db.add(db_instructor)
+    db.commit()
+    db.refresh()
+    return db_instructor
+</file>
+
+<file path="database.py">
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
+
+
+# PostgreSQL connection string format:
+# postgresql://username:password@host:port/database_name
+
+POSTGRESQL_DATABASE_URL = "postgresql://saba:Akhvleda8@localhost:5432/fit_instruqtorebi_db"
+
+engine = create_engine(POSTGRESQL_DATABASE_URL)
+
+SessionLocal = sessionmaker(autocommit=False,autoflush=False,bind=engine)
+
+Base = declarative_base()
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+</file>
+
+<file path="main.py">
+# Fastapi app and routes
+
+from fastapi import FastAPI, Depends,UploadFile,File,Form,HTTPException,status
+import models,schemas,crud
+from sqlalchemy.orm import Session
+from .database import get_db,Base,engine
+from pathlib import Path
+from enum import Enum
+
+
+
+app = FastAPI()
+
+#create uploads directory
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
+
+
+@app.post("/instructors/",response_model=schemas.Instructor,status_code=status.HTTP_201_CREATED)
+async def create_fit_instructor(instructor: schemas.InstructorCreate, db: Session = Depends(get_db)):
+    db_instructor = crud.cet_fit_instructor_by_name(instructor.username,db)
+    db_instructor_gmail = crud.cet_fit_instructor_by_gmail(instructor.gmail,db)
+    if db_instructor or db_instructor_gmail:
+        raise HTTPException(status_code=400, detail="username or gmail already exist")
+    return crud.create_instructor(instructor,db)
+
+
+
+class ServiceType(str, Enum):
+    online = "დისტანციური"
+    gym = "დარბაზი"
+    home = "სახლში მისვლა"
+    hybrid = "ჰიბრიდული"
+</file>
+
+<file path="models.py">
+# DEFINES HOW DATA IS STORED IN THE DATABASE
+
+from sqlalchemy import Column,Integer,String,Float,Text,Enum
+from FitAPP.database import Base
+from FitAPP.main import ServiceType
+
+
+
+class FitInstructorsTable(Base):
+    __tablename__ = "Fitness_Instructors"
+
+    id = Column(Integer,primary_key=True,index=True)
+    username = Column(String,index=True,nullable=False)
+    fullname = Column(String)
+    gmail = Column(String,unique=True,index=True,nullable=False)
+    mobile_phone = Column(Integer,nullable=False)
+    city = Column(String,nullable=False)
+    category = Column(String)
+    experience = Column(Integer,nullable=False)
+    service_type = Column(Enum(ServiceType), nullable=False)
+    bio = Column(Text,nullable=False)
+    photo_path = Column(String,nullable=False)
+    min_salary = Column(Float,default=0)
+    max_salary = Column(Float,default=0)
+</file>
+
+<file path="schemas.py">
+# DEFINES HOW DATA IS RECEIVED FROM CLIENTS AND RETURNED IN RESPONSES
+from pydantic import Basemodel
+from FitAPP.main import ServiceType
+
+
+
+class InstructorBase(Basemodel):
+    id: int
+    username: str
+    fullname: str | None = None
+    gmail: str
+    mobile_phone: int
+    city: str
+    category: str | None=None
+    service_type: ServiceType
+    experience: int
+    bio: str
+    min_salary: float | None=None
+    max_salary: float | None=None
+
+class InstructorCreate(InstructorBase):
+    password: str
+
+class Instructor(InstructorBase):
+    id: int
+    photo_path: str
+</file>
+
+</files>

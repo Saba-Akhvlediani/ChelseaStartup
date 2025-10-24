@@ -1,6 +1,14 @@
-from sqlalchemy import Column,Integer,String,Float,Text,Enum
+# DEFINES HOW DATA IS STORED IN THE DATABASE
+
+from sqlalchemy import Column,Integer,String,Float,Text,Enum as SQLEnum
+from enum import Enum as PYenum
 from .database import Base
-from .main import ServiceType
+
+class ServiceType(str, PYenum):
+    online = "დისტანციური"
+    gym = "დარბაზი"
+    home = "სახლში მისვლა"
+    hybrid = "ჰიბრიდული"
 
 class FitInstructorsTable(Base):
     __tablename__ = "Fitness_Instructors"
@@ -13,7 +21,7 @@ class FitInstructorsTable(Base):
     city = Column(String,nullable=False)
     category = Column(String)
     experience = Column(Integer,nullable=False)
-    service_type = Column(Enum(ServiceType), nullable=False)
+    service_type = Column(SQLEnum(ServiceType, native_enum=False), nullable=False)
     bio = Column(Text,nullable=False)
     photo_path = Column(String,nullable=False)
     min_salary = Column(Float,default=0)
