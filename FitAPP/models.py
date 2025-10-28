@@ -15,9 +15,10 @@ class FitInstructorsTable(Base):
 
     id = Column(Integer,primary_key=True,index=True)
     username = Column(String,index=True,nullable=False)
+    password = Column(String)
     fullname = Column(String)
     gmail = Column(String,unique=True,index=True,nullable=False)
-    mobile_phone = Column(Integer,nullable=False)
+    mobile_phone = Column(String,nullable=False)
     city = Column(String,nullable=False)
     category = Column(String)
     experience = Column(Integer,nullable=False)
