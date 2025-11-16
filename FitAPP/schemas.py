@@ -1,5 +1,5 @@
 # DEFINES HOW DATA IS RECEIVED FROM CLIENTS AND RETURNED IN RESPONSES
-from pydantic import BaseModel,EmailStr
+from pydantic import BaseModel,EmailStr,Field
 from .models import ServiceType
 
 
@@ -11,6 +11,9 @@ class InstructorBase(BaseModel):
     gmail: EmailStr
     mobile_phone: str
     city: str
+    address: str
+    longitude: float = Field(...,ge=-90,le=90)
+    latitude: float = Field(...,ge=-180,le=180)
     category: str | None=None
     service_type: ServiceType
     experience: int
@@ -25,6 +28,9 @@ class InstructorUpdate(BaseModel):
     gmail: EmailStr | None=None
     mobile_phone: str | None=None
     city: str | None=None
+    address: str | None=None
+    latitude: float | None=Field(...,ge=-90,le=90)
+    longitude: float | None=Field(...,ge=-180,le=180)
     category: str | None = None
     service_type: ServiceType | None=None
     experience: int | None=None
@@ -45,4 +51,11 @@ class InstructorCreate(InstructorBase):
 class Instructor(InstructorBase):
     id: int
     photo_path: str
+    rating: float = 0
+    total_reviews: int = 0
+    available: bool = True
+    is_verified: bool = False
+
+    class Config:
+        from_attributes = True
 

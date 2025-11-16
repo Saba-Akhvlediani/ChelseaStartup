@@ -1,0 +1,482 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+4. Repository files, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+<additional_info>
+
+</additional_info>
+
+</file_summary>
+
+<directory_structure>
+FitAPP/
+  __init__.py
+  crud.py
+  database.py
+  main.py
+  models.py
+  schemas.py
+.gitignore
+README.md
+requirements.txt
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="FitAPP/__init__.py">
+# from . import crud,main,database,models,schemas
+</file>
+
+<file path="FitAPP/database.py">
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.declarative import declarative_base
+
+
+# PostgreSQL connection string format:
+# postgresql://username:password@host:port/database_name
+
+POSTGRESQL_DATABASE_URL = "postgresql://saba:Akhvleda8@localhost:5432/fit_instruqtorebi_db"
+
+engine = create_engine(POSTGRESQL_DATABASE_URL)
+
+SessionLocal = sessionmaker(autocommit=False,autoflush=False,bind=engine)
+
+Base = declarative_base()
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+</file>
+
+<file path="README.md">
+# ChelseaStartup
+</file>
+
+<file path="requirements.txt">
+fastapi
+uvicorn[standard]
+passlib[bcrypt]
+pydantic>=2.7.0,<3.0.0
+pydantic[email]
+python-multipart
+python-jose[cryptography]
+sqlalchemy
+psycopg2-binary
+</file>
+
+<file path="FitAPP/crud.py">
+# WRITE ALL DATABASE LOGIC SEPERATED FROM API ENDPOINTS
+
+from . import models,schemas
+from .database import get_db
+from sqlalchemy.orm import Session
+from fastapi import Depends,status,HTTPException
+from passlib.context import CryptContext
+from pathlib import Path
+from typing import Optional
+
+pwd_context = CryptContext(schemes=["bcrypt"],deprecated="auto")
+
+
+def hash_password(password):
+    return pwd_context.hash(password)
+
+
+def get_fit_instructor_by_id(instructor_id: int, db: Session=Depends(get_db)):
+    return db.query(models.FitInstructorsTable).filter(models.FitInstructorsTable.id==instructor_id).first()
+
+
+def get_fit_instructor_by_name(instructor_username: str, db: Session=Depends(get_db)):
+    return db.query(models.FitInstructorsTable).filter(models.FitInstructorsTable.username==instructor_username).first()
+
+
+def get_fit_instructor_by_gmail(instructor_gmail: str, db: Session=Depends(get_db)):
+    return db.query(models.FitInstructorsTable).filter(models.FitInstructorsTable.gmail==instructor_gmail).first()
+
+
+def create_instructor(instructor: schemas.InstructorCreate, photo_path: str, db: Session=Depends(get_db)):
+    hashed_password = hash_password(instructor.password)
+    db_instructor = models.FitInstructorsTable(username=instructor.username,
+                                               password=hashed_password,
+                                               fullname=instructor.fullname,
+                                               gmail=instructor.gmail,
+                                               mobile_phone=instructor.mobile_phone,
+                                               city=instructor.city,
+                                               category=instructor.category,
+                                               experience=instructor.experience,
+                                               service_type=instructor.service_type,
+                                               bio=instructor.bio,
+                                               photo_path=photo_path,
+                                               min_salary=instructor.min_salary,
+                                               max_salary=instructor.max_salary)
+
+    db.add(db_instructor)
+    db.commit()
+    db.refresh(db_instructor)
+    return db_instructor
+
+
+
+def update_instructor(instructor_id: int, instructor_update: schemas.InstructorUpdate, db: Session=Depends(get_db)):
+
+    db_instructor = get_fit_instructor_by_id(instructor_id,db)
+    if not db_instructor:
+        return None
+
+    update_data = instructor_update.dict(exclude_unset=True,exclude_none=True)
+    for key,value in update_data.items():
+        if value is not None:
+            if key=="password":
+                setattr(db_instructor,key,hash_password(value))
+            else:
+                setattr(db_instructor,key,value)
+
+    db.commit()
+    db.refresh(db_instructor)
+    return db_instructor
+
+
+
+def update_instructor_photo(instructor_id: int, new_photo_path: str, db: Session=Depends(get_db)):
+
+    db_instructor = get_fit_instructor_by_id(instructor_id,db)
+    if not db_instructor:
+        return None
+
+    if db_instructor.photo_path:
+        old_path = Path(db_instructor.photo_path)
+        if old_path.exists():
+            old_path.unlink()
+
+    db_instructor.photo_path = new_photo_path
+
+    db.commit()
+    db.refresh(db_instructor)
+    return db_instructor
+
+
+def delete_instructor(instructor_id: int, db: Session=Depends(get_db)):
+    db_instructor = get_fit_instructor_by_id(instructor_id,db)
+    if not db_instructor:
+        return None
+
+    db.delete(db_instructor)
+    db.commit()
+    return db_instructor
+</file>
+
+<file path="FitAPP/main.py">
+# Fastapi app and routes
+
+from fastapi import FastAPI, Depends,UploadFile,File,Form,HTTPException,status
+from fastapi.staticfiles import StaticFiles
+from . import models,schemas,crud
+from sqlalchemy.orm import Session
+from .database import get_db,Base,engine
+from pydantic import EmailStr
+from pathlib import Path
+from typing import Optional, Unpack
+import shutil
+import uuid
+
+#create database tables
+models.Base.metadata.create_all(bind=engine)
+
+app = FastAPI(title="Fitness instructors API")
+
+#create uploads directory
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
+
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
+async def save_photo(photo: UploadFile, username: str):
+    #validate file type
+    if not photo.content_type.startswith("image/"):
+        raise HTTPException(status_code=400,detail="File must be an image jpg,png, etc.")
+
+    #validate file size (5mb max)
+    photo.file.seek(0,2)
+    file_size = photo.file.tell()
+    photo.file.seek(0)
+
+    if file_size > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400,detail="File size must be less than 5 mb")
+
+    #create unique filename
+    file_extension = photo.filename.split(".")[-1]
+    unique_filename = f"{username}_{uuid.uuid4().hex[:8]}.{file_extension}"
+    file_path = UPLOAD_DIR / unique_filename
+
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(photo.file, buffer)
+
+    return str(file_path)
+
+
+
+@app.post("/instructors/",response_model=schemas.Instructor,status_code=201)
+async def create_fit_instructor(
+        username: str = Form(...),
+        password: str = Form(...),
+        fullname: Optional[str] = Form(None),
+        gmail: EmailStr = Form(...),
+        mobile_phone: str = Form(...),
+        city: str = Form(...),
+        category: Optional[str] = Form(None),
+        service_type: str = Form(...),
+        experience: int = Form(...),
+        bio: str = Form(...),
+        min_salary: Optional[float] = Form(None),
+        max_salary: Optional[float] = Form(None),
+        photo: UploadFile = File(...),
+        db: Session = Depends(get_db)):
+
+        db_instructor = crud.get_fit_instructor_by_name(username,db)
+        db_instructor_gmail = crud.get_fit_instructor_by_gmail(gmail,db)
+
+        if db_instructor:
+            raise HTTPException(status_code=400,detail="Username already exists")
+
+        if db_instructor_gmail:
+            raise HTTPException(status_code=400,detail="Email already registered")
+
+        photo_path = await save_photo(photo,username)
+
+        fit_instructor_data = schemas.InstructorCreate(username=username,
+                                                       password=password,
+                                                       fullname=fullname,
+                                                       gmail=gmail,
+                                                       mobile_phone=mobile_phone,
+                                                       city=city,
+                                                       category=category,
+                                                       service_type=service_type,
+                                                       experience=experience,
+                                                       bio=bio,
+                                                       min_salary=min_salary,
+                                                       max_salary=max_salary)
+
+        return crud.create_instructor(fit_instructor_data,photo_path,db)
+
+
+@app.put("/instructors/{instructor_id}",response_model=schemas.Instructor,status_code=status.HTTP_200_OK)
+async def update_instructor_data(instructor_id: int, updated_data: schemas.InstructorUpdate, db: Session=Depends(get_db)):
+
+    db_instructor = crud.get_fit_instructor_by_id(instructor_id,db)
+    if not db_instructor:
+        raise HTTPException(status_code=404,detail="Can't find instructor with this ID")
+
+    db_instructor_gmail = crud.get_fit_instructor_by_gmail(updated_data.gmail,db)
+    if db_instructor_gmail and db_instructor_gmail.id != instructor_id:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    db_instructor_username = crud.get_fit_instructor_by_name(updated_data.username,db)
+    if db_instructor_username and db_instructor_username.id != instructor_id:
+        raise HTTPException(status_code=400,detail="Username already exists")
+
+    updated_instructor = crud.update_instructor(instructor_id,updated_data,db)
+
+    return updated_instructor
+
+
+
+
+@app.put("/instructors/{instructor_id}/photo",response_model=schemas.Instructor,status_code=200)
+async def update_instructor_photo(instructor_id: int, new_photo: UploadFile=File(...), db: Session=Depends(get_db)):
+    db_instructor = crud.get_fit_instructor_by_id(instructor_id,db)
+    if not db_instructor:
+        raise HTTPException(status_code=404,detail="Can't find instructor with this ID")
+
+    if not new_photo or not new_photo.filename:
+        raise HTTPException(status_code=400,detail="Photo is required!!!")
+
+    new_photo_path = await save_photo(new_photo,db_instructor.username)
+    updated_instructor_photo = crud.update_instructor_photo(instructor_id,new_photo_path,db)
+
+    return updated_instructor_photo
+
+
+
+
+@app.get("/instructors/{instructor_id}",response_model=schemas.Instructor,status_code=200)
+async def get_instructor_by_id(instructor_id: int, db: Session=Depends(get_db)):
+    db_instructor = crud.get_fit_instructor_by_id(instructor_id,db)
+    if not db_instructor:
+        raise HTTPException(status_code=404,detail="Can't find instructor with this ID")
+    return db_instructor
+
+
+
+
+@app.delete("/instructors/{instructor_id}",response_model=schemas.Instructor,status_code=200)
+async def delete_instructor_by_id(instructor_id: int, db: Session=Depends(get_db)):
+    db_instructor = crud.get_fit_instructor_by_id(instructor_id,db)
+    if not db_instructor:
+        raise HTTPException(status_code=404,detail="Can't find instructor with this ID ")
+
+    delete_instructor = crud.delete_instructor(instructor_id,db)
+
+    return delete_instructor
+</file>
+
+<file path="FitAPP/models.py">
+# DEFINES HOW DATA IS STORED IN THE DATABASE
+
+from sqlalchemy import Column,Integer,String,Float,Text,Enum as SQLEnum
+from enum import Enum as PYenum
+from .database import Base
+
+class ServiceType(str, PYenum):
+    online = "დისტანციური"
+    gym = "დარბაზი"
+    home = "სახლში მისვლა"
+    hybrid = "ჰიბრიდული"
+
+class FitInstructorsTable(Base):
+    __tablename__ = "Fitness_Instructors"
+
+    id = Column(Integer,primary_key=True,index=True)
+    username = Column(String,index=True,nullable=False)
+    password = Column(String)
+    fullname = Column(String)
+    gmail = Column(String,unique=True,index=True,nullable=False)
+    mobile_phone = Column(String,nullable=False)
+    city = Column(String,nullable=False)
+    address = Column(String,nullable=False)
+    latitude = Column(Float,nullable=False)
+    longitude = Column(Float,nullable=False)
+    category = Column(String)
+    experience = Column(Integer,nullable=False)
+    service_type = Column(SQLEnum(ServiceType, native_enum=False), nullable=False)
+    bio = Column(Text,nullable=False)
+    photo_path = Column(String,nullable=False)
+    min_salary = Column(Float,default=0)
+    max_salary = Column(Float,default=0)
+    rating = Column(Float,default=0)
+    total_reviews = Column(Integer,default=0)
+    available = Column(Boolean,index=True,default=True)
+    is_verified = Column(Boolean,index=True,default=False)
+
+    #unda chavamato instructoris lokacia ris mixedvitac momxmarebels searchis dros misi misamartis shesabamisad amougdebs
+    #unda chavamato misamarti,momxmarebels daserchvisas ro uchvenebs am instructors(instructoris lokaciaze iqneba damokidebuli)
+    #unda chavamato momxmarebelta shefasebebi rac momxmareblebze iqneba damokidebuli
+
+# kvelafers gavasworeb instructorebis bazashi tu ramea mnishvnelovani dasamatebeli davamateb da mere shevqmni amas
+# class FitCostumersTable(Base):
+#     id = Column(Integer,primary_key=True,index=True)
+#     username = Column(String,nullable=False,index=True)
+#     fullname = Column(String,nullable=False,index=True)
+#
+</file>
+
+<file path="FitAPP/schemas.py">
+# DEFINES HOW DATA IS RECEIVED FROM CLIENTS AND RETURNED IN RESPONSES
+from pydantic import BaseModel,EmailStr
+from .models import ServiceType
+
+
+
+class InstructorBase(BaseModel):
+    # id: int
+    username: str
+    fullname: str | None=None
+    gmail: EmailStr
+    mobile_phone: str
+    city: str
+    category: str | None=None
+    service_type: ServiceType
+    experience: int
+    bio: str
+    min_salary: float | None=None
+    max_salary: float | None=None
+
+class InstructorUpdate(BaseModel):
+    username: str | None=None
+    password: str | None=None
+    fullname: str | None=None
+    gmail: EmailStr | None=None
+    mobile_phone: str | None=None
+    city: str | None=None
+    category: str | None = None
+    service_type: ServiceType | None=None
+    experience: int | None=None
+    bio: str | None=None
+    min_salary: float | None = None
+    max_salary: float | None = None
+
+
+    class Config:
+        # This helps Pydantic understand partial updates
+        validate_assignment = True
+
+
+
+class InstructorCreate(InstructorBase):
+    password: str
+
+class Instructor(InstructorBase):
+    id: int
+    photo_path: str
+</file>
+
+<file path=".gitignore">
+# Virtual environment
+env/
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# IDE files
+.idea/
+.vscode/
+
+# Environment variables
+.env
+
+# Uploads (instructor photos)
+uploads/
+</file>
+
+</files>

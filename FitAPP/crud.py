@@ -35,6 +35,9 @@ def create_instructor(instructor: schemas.InstructorCreate, photo_path: str, db:
                                                gmail=instructor.gmail,
                                                mobile_phone=instructor.mobile_phone,
                                                city=instructor.city,
+                                               adress=instructor.address,
+                                               latitude=instructor.latitude,
+                                               longitude=instructor.longitude,
                                                category=instructor.category,
                                                experience=instructor.experience,
                                                service_type=instructor.service_type,
@@ -85,4 +88,14 @@ def update_instructor_photo(instructor_id: int, new_photo_path: str, db: Session
 
     db.commit()
     db.refresh(db_instructor)
+    return db_instructor
+
+
+def delete_instructor(instructor_id: int, db: Session=Depends(get_db)):
+    db_instructor = get_fit_instructor_by_id(instructor_id,db)
+    if not db_instructor:
+        return None
+
+    db.delete(db_instructor)
+    db.commit()
     return db_instructor
